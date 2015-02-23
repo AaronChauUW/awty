@@ -12,6 +12,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 
@@ -27,24 +28,14 @@ public class MainActivity extends ActionBarActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // Get the views and put them in a holder
         getViews();
 
-        if (savedInstanceState == null) {
-            spamming = false;
-        } else {
-            spamming = savedInstanceState.getBoolean("spamming");
-            makePendingSpam(
-                    savedInstanceState.getString("message"),
-                    savedInstanceState.getString("phoneNumber")
-            );
+        checkForExistingAlarm();
 
-            if(spamming){
-                viewHolder.sendBtn.setText(R.string.stopSpammingLabel);
-            }
-
+        if(spamming){
+            viewHolder.sendBtn.setText(R.string.stopSpammingLabel);
         }
-
-
 
         startActivity();
     }
@@ -57,7 +48,28 @@ public class MainActivity extends ActionBarActivity {
         viewHolder.message = (EditText) findViewById(R.id.message);
         viewHolder.phoneNumber = (EditText) findViewById(R.id.phoneNumber);
         viewHolder.duration = (EditText) findViewById(R.id.minutes);
+        viewHolder.awtyMessages = (TextView) findViewById(R.id.awtyMessages);
         viewHolder.sendBtn = (Button) findViewById(R.id.sendBtn);
+    }
+
+    private void checkForExistingAlarm() {
+        boolean alarmUp = (
+                PendingIntent.getBroadcast(
+                        this,
+                        0,
+                        new Intent(this, SpamForYou.class),
+                        PendingIntent.FLAG_NO_CREATE
+                ) != null);
+        if(alarmUp){
+            Log.d(TAG, "An alarm is already up.");
+            spamming = true;
+            makePendingSpam();
+            viewHolder.disableViews();
+            viewHolder.awtyMessages.setVisibility(View.VISIBLE);
+        } else {
+            Log.d(TAG, "No alarm is currently up. Start fresh!");
+            spamming = false;
+        }
     }
 
     public void startActivity() {
@@ -70,10 +82,8 @@ public class MainActivity extends ActionBarActivity {
             public void onClick(View v) {
                 if (!spamming){
                     doTheSpamThing();
-                    spamming = true;
                 } else {
                     stopTheSpamThing();
-                    spamming = false;
                 }
             }
         });
@@ -84,21 +94,30 @@ public class MainActivity extends ActionBarActivity {
         if(validateFields()){
             Log.d(TAG, "Fields validated!");
 
+            // Start a new alarm.
             String message = getString(viewHolder.message);
             String phoneNumber = getString(viewHolder.phoneNumber);
             int minutes = Integer.parseInt(getString(viewHolder.duration));
 
             long time = minutes * 60 * 1000;
 
+            // Make the pending intent
             makePendingSpam(message, phoneNumber);
 
+            // Set the timer
             alarmMgr.setInexactRepeating(
                     AlarmManager.ELAPSED_REALTIME_WAKEUP,
                     time, time,
                     pendingSpam
             );
+            spamming = true;
 
+            // Disable the views so their not editable
+            viewHolder.disableViews();
+
+            // Let the user know.
             Toast.makeText(MainActivity.this, R.string.initSpamToast, Toast.LENGTH_SHORT).show();
+            viewHolder.awtyMessages.setVisibility(View.VISIBLE);
 
             viewHolder.sendBtn.setText(R.string.stopSpammingLabel);
         } else {
@@ -108,18 +127,33 @@ public class MainActivity extends ActionBarActivity {
     }
 
     // make the pending intent for the alarm manager
+    private void makePendingSpam(){ makePendingSpam("", ""); }
     private void makePendingSpam(String message, String phoneNumber) {
+        // Make pending spam should never be called before getting validated.
         Intent intent = new Intent(MainActivity.this, SpamForYou.class);
-        intent.putExtra("message", message);
-        intent.putExtra("phoneNumber", phoneNumber);
+        if(!message.equals("") && !phoneNumber.equals("")) {
+            intent.putExtra("message", message);
+            intent.putExtra("phoneNumber", phoneNumber);
+        }
         pendingSpam = PendingIntent.getBroadcast(MainActivity.this, 0, intent, 0);
     }
 
     // stop the alarm manager from spamming
     private void stopTheSpamThing(){
         if(alarmMgr != null) {
+            // change the text
             viewHolder.sendBtn.setText(R.string.send);
+            viewHolder.awtyMessages.setVisibility(View.GONE);
+
+            // cancel the alarm and pending intent
             alarmMgr.cancel(pendingSpam);
+            pendingSpam.cancel();
+            spamming = false;
+
+            // enable the views
+            viewHolder.enableViews();
+
+            // let the user know
             Toast.makeText(MainActivity.this, R.string.stopSpamToast, Toast.LENGTH_SHORT).show();
         }
     }
@@ -180,18 +214,23 @@ public class MainActivity extends ActionBarActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        outState.putBoolean("spamming", spamming);
-        outState.putString("message", getString(viewHolder.message));
-        outState.putString("phoneNumber", getString(viewHolder.phoneNumber));
-    }
-
     private static class ViewHolder {
         public EditText message;
         public EditText phoneNumber;
         public EditText duration;
+        public TextView awtyMessages;
         public Button sendBtn;
+
+        public void disableViews() {
+            message.setEnabled(false);
+            phoneNumber.setEnabled(false);
+            duration.setEnabled(false);
+        }
+
+        public void enableViews(){
+            message.setEnabled(true);
+            phoneNumber.setEnabled(true);
+            duration.setEnabled(true);
+        }
     }
 }

@@ -13,5 +13,7 @@
     <string name="initSpamToast">Initiating SPAM!</string>
     <string name="stopSpamToast">Stopping the spam.</string>
     <string name="failedValidationToast">Please fill all fields correctly!</string>
+    <string name="concurrent_alarm">There seems to be another alarm running.
+        You will have to stop it before you can create a new one.</string>
 
 </resources>
